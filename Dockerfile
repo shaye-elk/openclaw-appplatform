@@ -31,54 +31,72 @@ ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2
 ENV S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
 ENV S6_LOGGING=0
 
-# Install OS deps + Node.js + sshd + restic + s6-overlay
+# Install OS deps + Node.js + sshd + restic + s6-overlay + Chromium
 RUN set -eux; \
   apt-get update; \
   apt-get install -y --no-install-recommends \
-  ca-certificates \
-  wget \
-  unzip \
-  vim \
-  curl \
-  git \
-  gh \
-  gnupg \
-  ssh-import-id \
-  openssl \
-  jq \
-  sudo \
-  git \
-  bzip2 \
-  openssh-server \
-  cron \
-  build-essential \
-  procps \
-  xz-utils; \
+    ca-certificates \
+    wget \
+    unzip \
+    vim \
+    curl \
+    git \
+    gh \
+    gnupg \
+    ssh-import-id \
+    openssl \
+    jq \
+    sudo \
+    git \
+    bzip2 \
+    openssh-server \
+    cron \
+    build-essential \
+    procps \
+    xz-utils \
+    # Chromium browser and dependencies for browser tool
+    chromium-browser \
+    fonts-liberation \
+    libasound2t64 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    xdg-utils; \
   # Install restic
   RESTIC_ARCH="$( [ "$TARGETARCH" = "arm64" ] && echo arm64 || echo amd64 )"; \
   wget -q -O /tmp/restic.bz2 \
-  https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_${RESTIC_ARCH}.bz2; \
+    https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_${RESTIC_ARCH}.bz2; \
   bunzip2 /tmp/restic.bz2; \
   mv /tmp/restic /usr/local/bin/restic; \
   chmod +x /usr/local/bin/restic; \
   # Install ngrok
   mkdir -p /etc/apt/keyrings; \
   curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
-  | gpg --dearmor -o /etc/apt/keyrings/ngrok.gpg; \
+    | gpg --dearmor -o /etc/apt/keyrings/ngrok.gpg; \
   echo "deb [signed-by=/etc/apt/keyrings/ngrok.gpg] https://ngrok-agent.s3.amazonaws.com buster main" \
-  > /etc/apt/sources.list.d/ngrok.list; \
+    > /etc/apt/sources.list.d/ngrok.list; \
   apt-get update && apt-get install -y ngrok; \
   # Install yq for YAML parsing
   YQ_ARCH="$( [ "$TARGETARCH" = "arm64" ] && echo arm64 || echo amd64 )"; \
   wget -q -O /usr/local/bin/yq \
-  https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${YQ_ARCH}; \
+    https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${YQ_ARCH}; \
   chmod +x /usr/local/bin/yq; \
   # Install s6-overlay
   S6_ARCH="$( [ "$TARGETARCH" = "arm64" ] && echo aarch64 || echo x86_64 )"; \
   wget -O /tmp/s6-overlay-noarch.tar.xz \
-  https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz; \
+    https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz; \
   wget -O /tmp/s6-overlay-arch.tar.xz \
-  https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz; \
+    https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz; \
   tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz; \
   tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz; \
   rm /tmp/s6-overlay-*.tar.xz; \
@@ -110,7 +128,7 @@ USER openclaw
 RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
 
 # Install nvm, Node.js LTS, pnpm, and openclaw
-RUN export SHELL=/bin/bash  && export NVM_DIR="$HOME/.nvm" \
+RUN export SHELL=/bin/bash && export NVM_DIR="$HOME/.nvm" \
   && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash \
   && . "$NVM_DIR/nvm.sh" \
   && nvm install --lts \
@@ -121,6 +139,13 @@ RUN export SHELL=/bin/bash  && export NVM_DIR="$HOME/.nvm" \
   && export PNPM_HOME="/home/openclaw/.local/share/pnpm" \
   && export PATH="$PNPM_HOME:$PATH" \
   && pnpm add -g "openclaw@${OPENCLAW_VERSION}"
+
+# Install Playwright Chromium for browser tool support
+RUN export NVM_DIR="$HOME/.nvm" \
+  && . "$NVM_DIR/nvm.sh" \
+  && export PNPM_HOME="/home/openclaw/.local/share/pnpm" \
+  && export PATH="$PNPM_HOME:$PATH" \
+  && npx playwright install chromium
 
 # Switch back to root for final setup
 USER root
